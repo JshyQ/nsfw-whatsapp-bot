@@ -166,7 +166,7 @@ const startSocket = async () => {
         if (connection === 'open') {
             console.log(chalk.green('✅ Connected to WhatsApp successfully!'));
             sock.sendMessage(config().owner + '@s.whatsapp.net', {
-                text: `✅ *${config().settings.title}* is online\n> 🔒 Mode: Owner only (+${config().owner})\n> 📸 Story: send a photo/video as *Document* with caption .sw`
+                text: `✅ *${config().settings.title}* is online\n> 🔓 Mode: ${config().status.public ? 'Public (everyone)' : 'Owner only'} (+${config().owner})\n> 📸 Story: send a photo/video as *Document* with caption .sw`
             }).catch(console.error);
         }
         if (connection === 'close') console.log(chalk.red('❌ Connection closed:'), lastDisconnect?.error?.message);
@@ -203,11 +203,16 @@ const startSocket = async () => {
             if (mek.key.remoteJid === 'status@broadcast') return;
             const ageSec = Date.now() / 1000 - Number(mek.messageTimestamp || 0);
             if (ageSec > 180) return;
-            if (!(await isOwnerMessage(sock, mek))) return;
+
+            // Who sent it? Owner status is recorded honestly instead of being forced to true,
+            // so owner-only plugins still refuse normal users while public mode lets everyone through.
+            const isOwner = await isOwnerMessage(sock, mek);
+            if (!isOwner && !config().status.public) return;
+
             if (mek.key.id.startsWith('BASE-') && mek.key.id.length === 12) return;
             
             const m = await smsg(sock, mek, store);
-            m.isOwner = true;
+            m.isOwner = isOwner;
             require("./message")(sock, m, chatUpdate, store);
         } catch (err) { console.log(err); }
     });
@@ -227,7 +232,7 @@ const startSocket = async () => {
         }
     });
 
-    sock.public = false;
+    sock.public = config().status.public;
     
     sock.sendText = async (jid, text, quoted = '', options) => sock.sendMessage(jid, { text, ...options }, { quoted });
     sock.downloadMediaMessage = async (message) => {
