@@ -10,7 +10,7 @@ const config = {
     thumbUrl: "https://imgur.com/a/zHQF5Ol.jpeg",
     session: "sessions",
     status: {
-        public: false,
+        public: true,
         terminal: false,
         reactsw: false
     },
