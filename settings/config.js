@@ -1,5 +1,5 @@
-// 漏 2025 Debraj. All Rights Reserved.
-// respect the work, don鈥檛 just copy-paste.
+// © 2025 Debraj. All Rights Reserved.
+// respect the work, don't just copy-paste.
 
 const fs = require('fs')
 
@@ -10,7 +10,7 @@ const config = {
     thumbUrl: "https://imgur.com/a/zHQF5Ol.jpeg",
     session: "sessions",
     status: {
-        public: true,
+        public: true,   // true = everyone can use the bot, in groups AND DMs. false = owner only.
         terminal: false,
         reactsw: false
     },
