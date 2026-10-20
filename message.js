@@ -15,6 +15,10 @@ const { handleAddPlugin } = require('./library/pluginAdder');
 require('./library/compat'); // globals (mess, botName) that plugins from other bot bases expect
 const cmdLog = makeLog('cmd');
 
+// config.js reloads itself, but the `config` const above is captured once at load,
+// so read the mode through a fresh require or it would go stale.
+const isPublicMode = () => require('./settings/config').status?.public !== false;
+
 const image = fs.readFileSync('./thumbnail/image.jpg');
 const docu = fs.readFileSync('./thumbnail/document.jpg');
 
@@ -326,9 +330,9 @@ module.exports = sock = async (sock, m, chatUpdate, store) => {
         const isBotAdmins = m?.isGroup ? groupAdmins.includes(botNumber) : false;
         const isAdmins = m?.isGroup ? groupAdmins.includes(m.sender) : false;
         const isGroupOwner = m?.isGroup ? groupOwner === m.sender : false;
-        // index.js only lets the owner's number through, and marks it here
+        // index.js marks the real owner here. Everyone else is allowed too when status.public is on.
         const isCreator = m.isOwner === true;
-        if (!isCreator) return;
+        if (!isCreator && !isPublicMode()) return;
 
         if (isCmd) {
             console.log(chalk.hex("#6c5ce7")("# New Message"));
@@ -387,7 +391,7 @@ module.exports = sock = async (sock, m, chatUpdate, store) => {
                 const uptime = `${days}d ${hours}h ${minutes}m ${seconds}s`;
                 const ping = Date.now() - m.messageTimestamp * 1000;
                 const host = os.platform();
-                const mode = 'Owner only';
+                const mode = isPublicMode() ? 'Public (everyone)' : 'Owner only';
 
                 const pluginMenuSections = pluginLoader.getMenuSections();
                 const totalCommands = pluginLoader.getPluginCount();
@@ -433,6 +437,29 @@ ${pluginMenuSections}`;
                 if (!isCreator) return; // Silent - don't respond
                 pluginLoader.reloadPlugins();
                 await reply(`✅ Plugins reloaded! Loaded ${pluginLoader.getPluginCount()} commands across ${pluginLoader.categories.size} categories.`);
+                break;
+            }
+
+            // .public -> everyone can use the bot (groups + DMs)   |   .self -> owner only
+            case 'public':
+            case 'self': {
+                if (!isCreator) return reply(mess.owner);
+                const on = command === 'public' ? 'true' : 'false';
+                try {
+                    const cfgPath = path.join(__dirname, 'settings', 'config.js');
+                    const src = fs.readFileSync(cfgPath, 'utf8');
+                    const next = src.replace(/(\bpublic:\s*)(true|false)/, `$1${on}`);
+                    if (next === src) throw new Error('no "public:" flag found in settings/config.js');
+                    fs.writeFileSync(cfgPath, next);
+                    await reply(
+                        `✅ Mode set to *${on === 'true' ? 'PUBLIC' : 'SELF'}*\n\n` +
+                        (on === 'true'
+                            ? 'Everyone can now use the bot in groups and in DMs.'
+                            : 'Only the owner can use the bot now.')
+                    );
+                } catch (e) {
+                    await reply(`❌ Could not change the mode: ${e.message}`);
+                }
                 break;
             }
             
